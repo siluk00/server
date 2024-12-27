@@ -3,11 +3,15 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	"github.com/siluk00/server/internal/database"
 )
 
 type apiConfig struct {
 	fileServerHits atomic.Int32
+	dbQueries      *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -19,7 +23,19 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
+
+	if os.Getenv("PLATFORM") != "dev" {
+		respondWithError(w, "Non-local user", http.StatusForbidden)
+		return
+	}
+
 	cfg.fileServerHits.Store(0)
+
+	err := cfg.dbQueries.DeleteAllUsers(r.Context())
+	if err != nil {
+		respondWithError(w, "Error Accessing database", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (cfg *apiConfig) handleAdmin(w http.ResponseWriter, r *http.Request) {
