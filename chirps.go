@@ -4,17 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/siluk00/server/internal/auth"
 	"github.com/siluk00/server/internal/database"
 )
 
 func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
 	type requestBody struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	var req requestBody
@@ -27,10 +28,6 @@ func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res responseBody
-	responseMessage := validateWords(req.Body)
-	res.Body = responseMessage
-
 	if len(req.Body) > 140 {
 		respondWithError(w, "Chirpy is too long", http.StatusBadRequest)
 		return
@@ -39,9 +36,27 @@ func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, "Bearer token problem:"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, os.Getenv("SECRET"))
+
+	if err != nil {
+		respondWithError(w, "Jwt invalid: "+err.Error(), http.StatusUnauthorized)
+		return
+	}
+
+	var res responseBody
+	responseMessage := validateWords(req.Body)
+	res.Body = responseMessage
+
 	var params database.CreateChirpyParams
 	params.Body = req.Body
-	params.UserID = req.UserID
+	params.UserID = userId
 
 	chirpy, err := cfg.dbQueries.CreateChirpy(r.Context(), params)
 
@@ -53,7 +68,7 @@ func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
 	res.CreatedAt = chirpy.CreatedAt
 	res.UpdatedAt = chirpy.UpdatedAt
 	res.ID = chirpy.ID
-	res.UserID = req.UserID
+	res.UserID = userId
 
 	w.WriteHeader(http.StatusCreated)
 	marshalAndWrite(w, &res)
