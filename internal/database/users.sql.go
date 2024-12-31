@@ -7,7 +7,26 @@ package database
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const alterChirpyRed = `-- name: AlterChirpyRed :exec
+UPDATE users 
+SET 
+is_chirpy_red = $2
+WHERE id=$1
+`
+
+type AlterChirpyRedParams struct {
+	ID          uuid.UUID
+	IsChirpyRed bool
+}
+
+func (q *Queries) AlterChirpyRed(ctx context.Context, arg AlterChirpyRedParams) error {
+	_, err := q.db.ExecContext(ctx, alterChirpyRed, arg.ID, arg.IsChirpyRed)
+	return err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, created_at, updated_at, hashed_password, email)
@@ -18,7 +37,7 @@ VALUES (
     $1,
     $2
 ) 
-RETURNING id, created_at, updated_at, email, hashed_password
+RETURNING id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -35,6 +54,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -49,7 +69,7 @@ func (q *Queries) DeleteAllUsers(ctx context.Context) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users 
+SELECT id, created_at, updated_at, email, hashed_password, is_chirpy_red FROM users 
 WHERE email=$1
 `
 
@@ -62,12 +82,32 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
+	)
+	return i, err
+}
+
+const getUserById = `-- name: GetUserById :one
+SELECT id, created_at, updated_at, email, hashed_password, is_chirpy_red FROM users
+WHERE id=$1
+`
+
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserById, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const getUserFromRefreshToken = `-- name: GetUserFromRefreshToken :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users 
+SELECT id, created_at, updated_at, email, hashed_password, is_chirpy_red FROM users 
 WHERE users.id = (
     SELECT user_id FROM refresh_tokens
     WHERE refresh_tokens.token = $1
@@ -85,6 +125,27 @@ func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (Us
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
+}
+
+const updateUserPasswordById = `-- name: UpdateUserPasswordById :exec
+UPDATE users
+SET
+email = $2,
+hashed_password = $3,
+updated_at = NOW()
+WHERE id= $1
+`
+
+type UpdateUserPasswordByIdParams struct {
+	ID             uuid.UUID
+	Email          string
+	HashedPassword string
+}
+
+func (q *Queries) UpdateUserPasswordById(ctx context.Context, arg UpdateUserPasswordByIdParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPasswordById, arg.ID, arg.Email, arg.HashedPassword)
+	return err
 }

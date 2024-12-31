@@ -16,3 +16,7 @@ INSERT INTO chirpy(id, created_at, updated_at, body, user_id)
 -- name: GetChirpById :one
  SELECT * FROM chirpy
  WHERE id=$1;
+
+-- name: DeleteChirpyById :exec
+ DELETE FROM chirpy
+ WHERE id=$1;

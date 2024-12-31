@@ -45,6 +45,9 @@ func main() {
 	servemux.HandleFunc("POST /api/login", cfg.handleLogin)
 	servemux.HandleFunc("POST /api/refresh", cfg.handleRefreshToken)
 	servemux.HandleFunc("POST /api/revoke", cfg.handleRevokeToken)
+	servemux.HandleFunc("PUT /api/users", cfg.handleUpdateUser)
+	servemux.HandleFunc("DELETE /api/chirps/{chirp_id}", cfg.handleDeleteChirpById)
+	servemux.HandleFunc("POST /api/polka/webhooks", cfg.handlePolkaWebhooks)
 
 	err = server.ListenAndServe()
 	if err != nil {

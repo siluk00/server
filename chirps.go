@@ -103,18 +103,6 @@ func (cfg *apiConfig) handleGetChirps(w http.ResponseWriter, r *http.Request) {
 	marshalAndWrite(w, res)
 }
 
-func respondWithError(w http.ResponseWriter, message string, errorCode int) {
-
-	type responseError struct {
-		Error string `json:"error"`
-	}
-
-	var res responseError
-	res.Error = message
-	w.WriteHeader(errorCode)
-	marshalAndWrite(w, &res)
-}
-
 func validateWords(s string) string {
 	badWords := make([]string, 3)
 	badWords[0] = "kerfuffle"
@@ -140,7 +128,7 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	chirpy, err := cfg.dbQueries.GetChirpById(r.Context(), uuid.MustParse(r.PathValue("chirp_id")))
 
 	if err != nil {
-		respondWithError(w, "Couldn't find chirp: "+err.Error(), http.StatusBadRequest)
+		respondWithError(w, "Couldn't find chirp: "+err.Error(), http.StatusNotFound)
 	}
 
 	var res responseBody
@@ -149,24 +137,50 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	res.ID = chirpy.ID
 	res.UserID = chirpy.UserID
 	res.UpdatedAt = chirpy.UpdatedAt
-	w.WriteHeader(200)
 	marshalAndWrite(w, &res)
 
 }
 
-func marshalAndWrite(w http.ResponseWriter, res any) {
-	w.Header().Set("Content-Type", "application/json")
-	body, err := json.Marshal(res)
+func (cfg *apiConfig) handleDeleteChirpById(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
 
 	if err != nil {
-		fmt.Printf("Error Marshaling response: %s\n", err)
+		respondWithError(w, "error getting token: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	_, err = w.Write(body)
+	idUser, err := auth.ValidateJWT(token, os.Getenv("SECRET"))
 
 	if err != nil {
-		fmt.Printf("Error writing body")
+		respondWithError(w, "error validating: "+err.Error(), http.StatusUnauthorized)
 		return
 	}
+
+	idStr := r.PathValue("chirp_id")
+	fmt.Println(idStr)
+	idChirpy, err := uuid.Parse(idStr)
+
+	if err != nil {
+		respondWithError(w, "Invalid chirpy id: "+err.Error(), http.StatusForbidden)
+		return
+	}
+
+	chirpy, err := cfg.dbQueries.GetChirpById(r.Context(), idChirpy)
+
+	if err != nil {
+		respondWithError(w, "Couln't find chirpy on database"+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	if chirpy.UserID != idUser {
+		respondWithError(w, "Not authorized: ", http.StatusForbidden)
+		return
+	}
+
+	err = cfg.dbQueries.DeleteChirpyById(r.Context(), idChirpy)
+	if err != nil {
+		respondWithError(w, "couldn't delete chirp: "+err.Error(), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
