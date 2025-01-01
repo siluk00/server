@@ -40,7 +40,7 @@ func main() {
 	servemux.HandleFunc("GET /admin/metrics", cfg.handleAdmin)
 	servemux.HandleFunc("POST /api/users", cfg.handleCreateUser)
 	servemux.HandleFunc("POST /api/chirps", cfg.handleChirps)
-	servemux.HandleFunc("GET /api/chirps", cfg.handleGetChirps)
+	servemux.HandleFunc("GET /api/chirps/", cfg.handleGetChirps)
 	servemux.HandleFunc("GET /api/chirps/{chirp_id}", cfg.handleGetChirp)
 	servemux.HandleFunc("POST /api/login", cfg.handleLogin)
 	servemux.HandleFunc("POST /api/refresh", cfg.handleRefreshToken)

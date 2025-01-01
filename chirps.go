@@ -83,10 +83,42 @@ type responseBody struct {
 }
 
 func (cfg *apiConfig) handleGetChirps(w http.ResponseWriter, r *http.Request) {
-	chirpies, err := cfg.dbQueries.GetAllChirps(r.Context())
+	var chirpies []database.Chirpy
+	var err error
+	authorId := r.URL.Query().Get("author_id")
+	sort := r.URL.Query().Get("sort")
+	if sort != "asc" && sort != "desc" {
+		sort = "asc"
+	}
 
-	if err != nil {
-		respondWithError(w, "Error getting chirps: "+err.Error(), http.StatusInternalServerError)
+	if authorId == "" {
+		if sort == "asc" {
+			chirpies, err = cfg.dbQueries.GetAllChirps(r.Context())
+		} else {
+			chirpies, err = cfg.dbQueries.GetAllChirpsDesc(r.Context())
+
+		}
+		if err != nil {
+			respondWithError(w, "Error getting chirps: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		authorIdUUID, err := uuid.Parse(authorId)
+
+		if err != nil {
+			respondWithError(w, "error parsing UUID", http.StatusNotFound)
+			return
+		}
+		if sort == "asc" {
+			chirpies, err = cfg.dbQueries.GetChirpsByUserId(r.Context(), authorIdUUID)
+		} else {
+			chirpies, err = cfg.dbQueries.GetChirpsByUserIdDesc(r.Context(), authorIdUUID)
+		}
+
+		if err != nil {
+			respondWithError(w, "Error getting chirps: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	res := make([]responseBody, len(chirpies))
